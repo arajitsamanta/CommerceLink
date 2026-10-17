@@ -1,0 +1,427 @@
+{
+  "info": {
+    "_postman_id": "7f6ab195-207a-488f-91c6-8082c202dcb3",
+    "name": "CommerceLink MCP API",
+    "description": "Requests for the CommerceLink MCP Streamable HTTP endpoint. Run the collection in order: initialize, initialized notification, tools/list, then tool calls. The initialize request stores the MCP session ID for the remaining requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8082",
+      "type": "string"
+    },
+    {
+      "key": "protocolVersion",
+      "value": "2025-11-25",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "order-001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "MCP lifecycle",
+      "item": [
+        {
+          "name": "Initialize session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"initialize\",\n  \"params\": {\n    \"protocolVersion\": \"{{protocolVersion}}\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman\",\n      \"version\": \"1.0.0\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Initialize the MCP connection. The test script saves the Mcp-Session-Id response header to the collection variable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Initialize returns HTTP 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const sessionId = pm.response.headers.get('Mcp-Session-Id');",
+                  "if (sessionId) { pm.collectionVariables.set('sessionId', sessionId); }",
+                  "pm.test('Initialize returns negotiated protocol', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.result.protocolVersion).to.eql(pm.collectionVariables.get('protocolVersion'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send initialized notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/initialized\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          }
+        },
+        {
+          "name": "List available tools",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Six CommerceLink tools are available', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.result.tools).to.have.length(6);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CommerceLink tools",
+      "item": [
+        {
+          "name": "list_products",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"list_products\",\n    \"arguments\": {\n      \"category\": \"Accessories\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          }
+        },
+        {
+          "name": "check_stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"check_stock\",\n    \"arguments\": {\n      \"productId\": \"p-101\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          }
+        },
+        {
+          "name": "create_order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"create_order\",\n    \"arguments\": {\n      \"customerId\": \"c-42\",\n      \"items\": [\n        { \"productId\": \"p-101\", \"qty\": 2 },\n        { \"productId\": \"p-207\", \"qty\": 1 }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Creates an order and saves its ID from structuredContent for subsequent get_order and update_order_status requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order created successfully', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.result.isError).to.eql(false);",
+                  "  pm.expect(body.result.structuredContent.orderId).to.be.a('string');",
+                  "  pm.collectionVariables.set('orderId', body.result.structuredContent.orderId);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "get_order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 6,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get_order\",\n    \"arguments\": {\n      \"orderId\": \"{{orderId}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          }
+        },
+        {
+          "name": "update_order_status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 7,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"update_order_status\",\n    \"arguments\": {\n      \"orderId\": \"{{orderId}}\",\n      \"status\": \"CONFIRMED\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          }
+        },
+        {
+          "name": "list_orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Mcp-Session-Id",
+                "value": "{{sessionId}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "{{protocolVersion}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 8,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"list_orders\",\n    \"arguments\": {\n      \"limit\": 20\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,243 @@
+openapi: 3.1.0
+info:
+  title: CommerceLink MCP HTTP API
+  version: 1.0.0
+  description: |
+    OpenAPI description for CommerceLink's Model Context Protocol (MCP)
+    Streamable HTTP endpoint. This is a JSON-RPC endpoint, not a REST CRUD API:
+    clients POST MCP requests to `/mcp` and select an operation using `method`.
+    Tool results and JSON-RPC errors are returned inside the JSON-RPC envelope.
+servers:
+  - url: http://localhost:8082
+    description: Local CommerceLink HTTP server
+paths:
+  /mcp:
+    post:
+      operationId: sendMcpMessage
+      summary: Send an MCP JSON-RPC request or notification
+      description: |
+        Send initialize, initialized, tools/list, or tools/call messages.
+        After initialize, retain the `Mcp-Session-Id` response header and send
+        it with subsequent requests. Send `MCP-Protocol-Version` using the
+        negotiated protocol version after initialization. Use
+        `Accept: application/json, text/event-stream` as required by Streamable HTTP.
+      parameters:
+        - name: Mcp-Session-Id
+          in: header
+          required: false
+          description: Session identifier returned by the initialize response.
+          schema:
+            type: string
+        - name: MCP-Protocol-Version
+          in: header
+          required: false
+          description: Negotiated MCP protocol version; use after initialization.
+          schema:
+            type: string
+            example: "2025-11-25"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/InitializeRequest"
+                - $ref: "#/components/schemas/InitializedNotification"
+                - $ref: "#/components/schemas/ToolsListRequest"
+                - $ref: "#/components/schemas/ToolsCallRequest"
+            examples:
+              initialize:
+                summary: Start an MCP session
+                value:
+                  jsonrpc: "2.0"
+                  id: 1
+                  method: initialize
+                  params:
+                    protocolVersion: "2025-11-25"
+                    capabilities: {}
+                    clientInfo:
+                      name: postman
+                      version: "1.0.0"
+              toolsList:
+                summary: Discover tools
+                value:
+                  jsonrpc: "2.0"
+                  id: 2
+                  method: tools/list
+                  params: {}
+              checkStock:
+                summary: Call check_stock
+                value:
+                  jsonrpc: "2.0"
+                  id: 3
+                  method: tools/call
+                  params:
+                    name: check_stock
+                    arguments:
+                      productId: p-101
+      responses:
+        "200":
+          description: JSON-RPC response, either JSON or a server-sent event stream.
+          headers:
+            Mcp-Session-Id:
+              description: Session identifier returned during initialization.
+              schema:
+                type: string
+            MCP-Protocol-Version:
+              description: Negotiated protocol version.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JsonRpcResponse"
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events containing a JSON-RPC response.
+        "202":
+          description: Notification accepted; no JSON-RPC response body is returned.
+        "400":
+          description: Invalid request or malformed JSON-RPC message.
+        "405":
+          description: HTTP method is not supported at this endpoint.
+        "406":
+          description: Accept header does not include a supported response media type.
+        "413":
+          description: Request body exceeds the transport size limit.
+components:
+  schemas:
+    JsonRpcId:
+      oneOf:
+        - type: integer
+        - type: string
+    InitializeRequest:
+      type: object
+      additionalProperties: false
+      required: [jsonrpc, id, method, params]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        id:
+          $ref: "#/components/schemas/JsonRpcId"
+        method:
+          const: initialize
+        params:
+          type: object
+          required: [protocolVersion, capabilities, clientInfo]
+          properties:
+            protocolVersion:
+              type: string
+              example: "2025-11-25"
+            capabilities:
+              type: object
+              additionalProperties: true
+            clientInfo:
+              $ref: "#/components/schemas/Implementation"
+    InitializedNotification:
+      type: object
+      additionalProperties: false
+      required: [jsonrpc, method]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        method:
+          const: notifications/initialized
+    ToolsListRequest:
+      type: object
+      additionalProperties: false
+      required: [jsonrpc, id, method]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        id:
+          $ref: "#/components/schemas/JsonRpcId"
+        method:
+          const: tools/list
+        params:
+          type: object
+          properties:
+            cursor:
+              type: string
+          additionalProperties: false
+    ToolsCallRequest:
+      type: object
+      additionalProperties: false
+      required: [jsonrpc, id, method, params]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        id:
+          $ref: "#/components/schemas/JsonRpcId"
+        method:
+          const: tools/call
+        params:
+          type: object
+          additionalProperties: false
+          required: [name]
+          properties:
+            name:
+              type: string
+              enum:
+                - list_products
+                - check_stock
+                - create_order
+                - get_order
+                - update_order_status
+                - list_orders
+            arguments:
+              type: object
+              additionalProperties: true
+    Implementation:
+      type: object
+      required: [name, version]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+    JsonRpcResponse:
+      type: object
+      required: [jsonrpc, id]
+      properties:
+        jsonrpc:
+          const: "2.0"
+        id:
+          $ref: "#/components/schemas/JsonRpcId"
+        result:
+          type: object
+          description: Method-specific result. Tool calls return content, isError, and optionally structuredContent.
+          properties:
+            content:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: text
+                  text:
+                    type: string
+                additionalProperties: true
+            isError:
+              type: boolean
+            structuredContent:
+              oneOf:
+                - type: object
+                  additionalProperties: true
+                - type: array
+                  items: {}
+          additionalProperties: true
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data: {}
+          additionalProperties: false
+      oneOf:
+        - required: [result]
+        - required: [error]
